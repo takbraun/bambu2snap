@@ -978,6 +978,99 @@ async def _log_requests(request: Request, call_next):
     return response
 
 
+# ---------------------------------------------------------------------------
+# OrcaSlicer networked printer preset
+#
+# Converted files point at U13MF_PRINTER_PRESET. If that preset does not exist
+# in the OrcaSlicer opening the file, Orca loads it as a parentless external
+# preset without a print host and only offers "Export G-code". These routes
+# let any machine install the preset with one command so Orca offers Print.
+
+def _orca_preset() -> tuple[str, dict[str, str]]:
+    name = os.environ.get("U13MF_PRINTER_PRESET", "").strip()
+    host = os.environ.get("U13MF_PRINT_HOST", "").strip()
+    if not name or not host:
+        raise HTTPException(404, detail="U13MF_PRINTER_PRESET / U13MF_PRINT_HOST not configured")
+    parent = os.environ.get("U13MF_PRINTER_PARENT", "Snapmaker U1 (0.4 nozzle)").strip()
+    return name, {
+        "from": "User",
+        "host_type": "octoprint",
+        "inherits": parent,
+        "is_custom_defined": "0",
+        "name": name,
+        "print_host": host,
+        "printer_settings_id": name,
+        "version": "2.5.0.0",
+    }
+
+
+@app.get("/api/orca-preset", include_in_schema=False)
+def orca_preset_json():
+    from fastapi.responses import Response
+    name, preset = _orca_preset()
+    return Response(
+        json.dumps(preset, indent=4),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{name}.json"'},
+    )
+
+
+@app.get("/install-orca-preset.ps1", include_in_schema=False)
+def orca_preset_ps1():
+    import base64
+    from fastapi.responses import PlainTextResponse
+    name, preset = _orca_preset()
+    b64_name = base64.b64encode(name.encode()).decode()
+    b64_json = base64.b64encode(json.dumps(preset, indent=4).encode()).decode()
+    script = f"""# bambu2snap: instala el preset de impresora en red en OrcaSlicer
+$name = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{b64_name}'))
+$json = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{b64_json}'))
+$roots = @("$env:APPDATA\\OrcaSlicer", "$env:APPDATA\\Snapmaker_Orca") | Where-Object {{ Test-Path $_ }}
+if (-not $roots) {{ Write-Host 'No se encontro OrcaSlicer. Abrelo una vez y vuelve a intentar.'; return }}
+foreach ($r in $roots) {{
+  $users = @(Get-ChildItem (Join-Path $r 'user') -Directory -ErrorAction SilentlyContinue)
+  if (-not $users) {{ $users = @(New-Item -ItemType Directory -Force (Join-Path $r 'user\\default')) }}
+  foreach ($u in $users) {{
+    $dir = Join-Path $u.FullName 'machine'
+    New-Item -ItemType Directory -Force $dir | Out-Null
+    [IO.File]::WriteAllText((Join-Path $dir "$name.json"), $json, (New-Object Text.UTF8Encoding $false))
+    Write-Host "Preset instalado: $dir\\$name.json"
+  }}
+}}
+Write-Host 'Reinicia OrcaSlicer para que aparezca la opcion Print.'
+"""
+    return PlainTextResponse(script, media_type="text/plain; charset=utf-8")
+
+
+@app.get("/install-orca-preset.sh", include_in_schema=False)
+def orca_preset_sh():
+    import base64
+    from fastapi.responses import PlainTextResponse
+    name, preset = _orca_preset()
+    b64_name = base64.b64encode(name.encode()).decode()
+    b64_json = base64.b64encode(json.dumps(preset, indent=4).encode()).decode()
+    script = f"""#!/bin/sh
+# bambu2snap: instala el preset de impresora en red en OrcaSlicer (macOS/Linux)
+NAME="$(printf '%s' '{b64_name}' | base64 -d 2>/dev/null || printf '%s' '{b64_name}' | base64 -D)"
+JSON="$(printf '%s' '{b64_json}' | base64 -d 2>/dev/null || printf '%s' '{b64_json}' | base64 -D)"
+found=0
+for r in "$HOME/Library/Application Support/OrcaSlicer" "$HOME/Library/Application Support/Snapmaker_Orca" \\
+         "$HOME/.config/OrcaSlicer" "$HOME/.var/app/io.github.softfever.OrcaSlicer/config/OrcaSlicer"; do
+  [ -d "$r" ] || continue
+  found=1
+  mkdir -p "$r/user/default"
+  for u in "$r"/user/*/; do
+    mkdir -p "$u/machine"
+    printf '%s\\n' "$JSON" > "$u/machine/$NAME.json"
+    echo "Preset instalado: $u/machine/$NAME.json"
+  done
+done
+[ "$found" = 1 ] || {{ echo "No se encontro OrcaSlicer. Abrelo una vez y vuelve a intentar."; exit 1; }}
+echo "Reinicia OrcaSlicer para que aparezca la opcion Print."
+"""
+    return PlainTextResponse(script, media_type="text/plain; charset=utf-8")
+
+
 @app.get("/privacy.html", response_class=HTMLResponse, include_in_schema=False)
 def privacy_page() -> HTMLResponse:
     path = FRONTEND_DIST / "privacy.html"

@@ -1,0 +1,17 @@
+services:
+  bambu2snap:
+    build: .
+    image: bambu2snap:local
+    container_name: bambu2snap
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - bambu2snap.env
+    volumes:
+      - bambu2snap_user_profiles:/app/user_profiles
+      - bambu2snap_feedback:/app/feedback
+
+volumes:
+  bambu2snap_user_profiles:
+  bambu2snap_feedback:

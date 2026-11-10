@@ -21,6 +21,27 @@ systemctl --user restart bambu2snap
 ```
 Abrir `http://<equipo>:8080`.
 
+## Docker
+```bash
+cp bambu2snap.env.example bambu2snap.env   # IP de la impresora
+docker compose up -d --build
+```
+
+## Botón Print en OrcaSlicer
+Los archivos convertidos apuntan al preset `U13MF_PRINTER_PRESET`. Si ese preset
+no existe en el OrcaSlicer donde abres el archivo, Orca solo ofrece
+"Export G-code". Instálalo una vez en cada equipo y reinicia OrcaSlicer:
+
+Windows (PowerShell):
+```powershell
+irm http://<equipo>:8080/install-orca-preset.ps1 | iex
+```
+macOS / Linux:
+```bash
+curl -fsSL http://<equipo>:8080/install-orca-preset.sh | sh
+```
+El JSON del preset también se puede descargar en `http://<equipo>:8080/api/orca-preset`.
+
 ## Actualizar
 ```bash
 cd ~/bambu2snap && git pull && .venv/bin/pip install -r requirements.txt && systemctl --user restart bambu2snap
