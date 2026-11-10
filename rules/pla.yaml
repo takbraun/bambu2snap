@@ -1,0 +1,33 @@
+name: Bambu PLA tuning
+description: >
+  Baseline speed and acceleration overrides for Bambu PLA filaments on the
+  Snapmaker U1. Covers PLA Basic, PLA+, and any other PLA type not matched by
+  a more specific rule. Values are conservative starting points that respect the
+  U1's motion limits and give good surface quality — tune outer_wall_speed up
+  once you've verified first-layer adhesion on your machine.
+match:
+  filament_vendor: Bambu Lab
+  filament_type: PLA
+overrides:
+  nozzle_temperature: 230
+  nozzle_temperature_initial_layer: 235
+  # First layer — critical: Bambu source values are too aggressive for U1 bed adhesion.
+  # initial_layer_infill_speed and initial_layer_travel_speed were causing bed shifting.
+  initial_layer_speed: 25
+  initial_layer_infill_speed: 25
+  initial_layer_travel_speed: 150
+  # General speeds
+  outer_wall_speed: 150
+  inner_wall_speed: 250
+  sparse_infill_speed: 250
+  internal_solid_infill_speed: 250
+  top_surface_speed: 100
+  gap_infill_speed: 100
+  travel_speed: 300
+  # Accelerations
+  default_acceleration: 4000
+  outer_wall_acceleration: 2500
+  inner_wall_acceleration: 4000
+  initial_layer_acceleration: 500
+priority: 0
+enabled: true
